@@ -1,3 +1,4 @@
+import csv
 import itertools
 from dataloader import (
     create_dataset_fruit,
@@ -13,7 +14,15 @@ from tqdm import tqdm
 import os.path as osp
 
 
-def train(model, train_loader, val_loader, pretrain=False, num_epochs=10):
+def train(
+    model,
+    train_loader,
+    val_loader,
+    transfer,
+    ignore_ratio,
+    pretrain=False,
+    num_epochs=10,
+):
     device = torch.device(
         "cuda"
         if torch.cuda.is_available()
@@ -72,6 +81,14 @@ def train(model, train_loader, val_loader, pretrain=False, num_epochs=10):
                     "./.checkpoints", f"checkpoint_epoch_{epoch+1}_loss_{val_loss}.pth"
                 ),
             )
+        else:
+            with open(
+                f"./.logs/transfer_{transfer}__data_ignored_{ignore_ratio*100}.csv",
+                "a",
+                newline="",
+            ) as file:
+                writer = csv.writer(file)
+                writer.writerow([epoch, train_loss, val_loss])
 
 
 def save_checkpoint(model, epoch, checkpoint_path):
@@ -106,41 +123,58 @@ def pretrain(epochs):
     )
 
     print("Start pretraining")
-    train(model, train_loader, val_loader, pretrain=True, num_epochs=epochs)
+    train(
+        model,
+        train_loader,
+        val_loader,
+        transfer=None,
+        ignore_ratio=None,
+        pretrain=True,
+        num_epochs=epochs,
+    )
 
 
 if __name__ == "__main__":
-    # pretrain(epochs=10)
+    pretrain(epochs=30)
+    # epochs = 40
 
-    combinations = list(itertools.product([False, True], [0, 0.2, 0.4, 0.6, 0.8]))
+    # combinations = list(itertools.product([False, True], [0, 0.2, 0.4, 0.6, 0.8]))
 
-    for pretrain, ignore_ratio in combinations:
-        print(pretrain, ignore_ratio)
+    # for transfer, ignore_ratio in combinations:
+    #     print(f"Transfer {transfer} with {ignore_ratio*100}% data ignored")
 
-        print("Creating fruit dataset & dataloader")
-        dataset_fruit = create_dataset_fruit()
-        train_loader, val_loader = load_fruit(
-            dataset_fruit, batch_size=16, ignored_ratio=ignore_ratio, num_workers=4
-        )
+    #     print("Creating fruit dataset & dataloader")
+    #     dataset_fruit = create_dataset_fruit()
+    #     train_loader, val_loader = load_fruit(
+    #         dataset_fruit, batch_size=16, ignored_ratio=ignore_ratio, num_workers=4
+    #     )
 
-        print("Initializing model")
-        model = resnet18(
-            pretrained=False,
-            num_classes=len(dataset_fruit.classes),
-        )
-        if pretrain:
-            print("Loading in pretrained model")
-            checkpoint_path = (
-                ".checkpoints/checkpoint_epoch_10_loss_0.05014692123692769.pth"
-            )
-            model = load_checkpoint(model, checkpoint_path)
-            model.fc = nn.Linear(
-                in_features=model.fc.in_features,
-                out_features=len(dataset_fruit.classes),
-            )
+    #     print("Initializing model")
+    #     model = resnet18(
+    #         pretrained=False,
+    #         num_classes=len(create_dataset_vegetable().classes),
+    #     )
+    #     if transfer:
+    #         print("Loading in pretrained model")
+    #         checkpoint_path = (
+    #             ".checkpoints/checkpoint_epoch_10_loss_0.05014692123692769.pth"
+    #         )
+    #         model = load_checkpoint(model, checkpoint_path)
+    #     model.fc = nn.Linear(
+    #         in_features=model.fc.in_features,
+    #         out_features=len(dataset_fruit.classes),
+    #     )
 
-        print("Start training")
-        train(model, train_loader, val_loader, pretrain=False, num_epochs=10)
+    #     print("Start training")
+    #     train(
+    #         model,
+    #         train_loader,
+    #         val_loader,
+    #         transfer,
+    #         ignore_ratio,
+    #         pretrain=False,
+    #         num_epochs=epochs,
+    #     )
 
     # TODO: plot learning curve: no pretraining
     # TODO: plot learning curve: with pretraining
