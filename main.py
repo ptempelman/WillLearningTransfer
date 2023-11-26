@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
+import os.path as osp
 
 
 def train(model, train_loader, val_loader):
@@ -58,6 +59,38 @@ def train(model, train_loader, val_loader):
             f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}"
         )
 
+        save_checkpoint(
+            model,
+            optimizer,
+            epoch,
+            train_loss,
+            val_loss,
+            osp.join(
+                "./.checkpoints", f"checkpoint_epoch_{epoch+1}_loss_{val_loss}.pth"
+            ),
+        )
+
+
+def save_checkpoint(model, optimizer, epoch, train_loss, val_loss, checkpoint_path):
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "loss": train_loss,
+        },
+        checkpoint_path,
+    )
+
+
+def load_checkpoint(model, optimizer, checkpoint_path):
+    checkpoint = torch.load(checkpoint_path)
+
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+    return model, optimizer
+
 
 if __name__ == "__main__":
     print("Creating dataset & dataloader")
@@ -65,7 +98,7 @@ if __name__ == "__main__":
     train_loader, val_loader = load_vegetable(
         dataset_vegetable, batch_size=64, num_workers=4
     )
-    
+
     print("Initializing model")
     model = resnet18(
         pretrained=False,
@@ -74,7 +107,7 @@ if __name__ == "__main__":
 
     print("Start training")
     train(model, train_loader, val_loader)
-
+    
     # TODO: adapt model for hard dataset (last layer, maybe first layer)
 
     # TODO: train again with pretrained model
