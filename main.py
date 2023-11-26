@@ -1,4 +1,10 @@
-from dataloader import create_dataset_vegetable, load_vegetable
+import itertools
+from dataloader import (
+    create_dataset_fruit,
+    create_dataset_vegetable,
+    load_fruit,
+    load_vegetable,
+)
 from model import resnet18
 import torch
 import torch.nn as nn
@@ -7,7 +13,7 @@ from tqdm import tqdm
 import os.path as osp
 
 
-def train(model, train_loader, val_loader):
+def train(model, train_loader, val_loader, pretrain=False, num_epochs=10):
     device = torch.device(
         "cuda"
         if torch.cuda.is_available()
@@ -18,7 +24,6 @@ def train(model, train_loader, val_loader):
     print(f"Using device: {device}")
 
     model = model.to(device)
-    num_epochs = 10
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=3e-4, momentum=0.9)
 
@@ -59,41 +64,36 @@ def train(model, train_loader, val_loader):
             f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}"
         )
 
-        save_checkpoint(
-            model,
-            optimizer,
-            epoch,
-            train_loss,
-            val_loss,
-            osp.join(
-                "./.checkpoints", f"checkpoint_epoch_{epoch+1}_loss_{val_loss}.pth"
-            ),
-        )
+        if pretrain:
+            save_checkpoint(
+                model,
+                epoch,
+                osp.join(
+                    "./.checkpoints", f"checkpoint_epoch_{epoch+1}_loss_{val_loss}.pth"
+                ),
+            )
 
 
-def save_checkpoint(model, optimizer, epoch, train_loss, val_loss, checkpoint_path):
+def save_checkpoint(model, epoch, checkpoint_path):
     torch.save(
         {
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "loss": train_loss,
         },
         checkpoint_path,
     )
 
 
-def load_checkpoint(model, optimizer, checkpoint_path):
+def load_checkpoint(model, checkpoint_path):
     checkpoint = torch.load(checkpoint_path)
 
     model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-    return model, optimizer
+    return model
 
 
-if __name__ == "__main__":
-    print("Creating dataset & dataloader")
+def pretrain(epochs):
+    print("Creating vegetable dataset & dataloader")
     dataset_vegetable = create_dataset_vegetable()
     train_loader, val_loader = load_vegetable(
         dataset_vegetable, batch_size=64, num_workers=4
@@ -105,12 +105,42 @@ if __name__ == "__main__":
         num_classes=len(dataset_vegetable.classes),
     )
 
-    print("Start training")
-    train(model, train_loader, val_loader)
-    
-    # TODO: adapt model for hard dataset (last layer, maybe first layer)
+    print("Start pretraining")
+    train(model, train_loader, val_loader, pretrain=True, num_epochs=epochs)
 
-    # TODO: train again with pretrained model
+
+if __name__ == "__main__":
+    # pretrain(epochs=10)
+
+    combinations = list(itertools.product([False, True], [0, 0.2, 0.4, 0.6, 0.8]))
+
+    for pretrain, ignore_ratio in combinations:
+        print(pretrain, ignore_ratio)
+
+        print("Creating fruit dataset & dataloader")
+        dataset_fruit = create_dataset_fruit()
+        train_loader, val_loader = load_fruit(
+            dataset_fruit, batch_size=16, ignored_ratio=ignore_ratio, num_workers=4
+        )
+
+        print("Initializing model")
+        model = resnet18(
+            pretrained=False,
+            num_classes=len(dataset_fruit.classes),
+        )
+        if pretrain:
+            print("Loading in pretrained model")
+            checkpoint_path = (
+                ".checkpoints/checkpoint_epoch_10_loss_0.05014692123692769.pth"
+            )
+            model = load_checkpoint(model, checkpoint_path)
+            model.fc = nn.Linear(
+                in_features=model.fc.in_features,
+                out_features=len(dataset_fruit.classes),
+            )
+
+        print("Start training")
+        train(model, train_loader, val_loader, pretrain=False, num_epochs=10)
 
     # TODO: plot learning curve: no pretraining
     # TODO: plot learning curve: with pretraining
