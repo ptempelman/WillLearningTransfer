@@ -140,6 +140,7 @@ if __name__ == "__main__":
     epochs = 40
     combinations = list(itertools.product([False, True], [0, 0.2, 0.4, 0.6, 0.8]))
 
+    # TODO: for reliable outcomes, run each training run with 10 different seeds and graph the average curve
     for transfer, ignore_ratio in combinations:
         print(f"Transfer {transfer} with {ignore_ratio*100}% data ignored")
 
@@ -175,7 +176,3 @@ if __name__ == "__main__":
             pretrain=False,
             num_epochs=epochs,
         )
-
-    # TODO: plot learning curve: no pretraining
-    # TODO: plot learning curve: with pretraining
-    # TODO: plot learning curves: with pretraining and decreasing amounts of hard dataset data
